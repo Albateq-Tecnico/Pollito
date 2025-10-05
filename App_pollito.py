@@ -64,7 +64,6 @@ def load_all_data(_spreadsheet):
         granja_resumen = pd.DataFrame(_spreadsheet.worksheet("Granja_Evaluacion").get_all_records())
         seguimiento = pd.DataFrame(_spreadsheet.worksheet("Seguimiento_7_Dias").get_all_records())
         
-        # --- MEJORA: Código más robusto para manejar columnas faltantes ---
         expected_numeric_cols = {
             "Lotes_Resumen": ['cantidad_total', 'temp_cloacal_promedio', 'puntuacion_final', 'uniformidad', 'cv_peso'],
             "Granja_Evaluacion": ['buche_lleno_24h_pct', 'cv_temp_cloacal_pct', 'cv_peso_granja_pct']
@@ -74,7 +73,7 @@ def load_all_data(_spreadsheet):
             if col in lotes_resumen.columns:
                 lotes_resumen[col] = pd.to_numeric(lotes_resumen[col], errors='coerce')
             else:
-                lotes_resumen[col] = np.nan # Si no existe, la crea vacía
+                lotes_resumen[col] = np.nan
 
         for col in expected_numeric_cols["Granja_Evaluacion"]:
             if col in granja_resumen.columns:
@@ -100,12 +99,21 @@ def initialize_session_state():
 initialize_session_state()
 
 # --- INTERFAZ DE USUARIO ---
-st.title("Método Rodriguez: Evaluación de Calidad de Pollito")
+
+# --- MEJORA: Añadir logos ---
+st.sidebar.image("pollito_logo_al.jpg", caption="Calidad desde el Origen")
+
+col_titulo, col_logo = st.columns([3, 1])
+with col_titulo:
+    st.title("Método Rodriguez: Evaluación de Calidad de Pollito")
+with col_logo:
+    st.image("logo mejorado_PEQ.png", width=150)
+
 st.markdown("---")
 
 tab1, tab2, tab3, tab4, tab5 = st.tabs(["Paso 1: Incubadora", "Paso 2: Transporte", "Paso 3: Granja (Recepción)", "Paso 4: Seguimiento 7 Días", "Paso 5: Dashboard de Análisis"])
 
-# Pestañas de captura de datos (1 a 4) - Código sin cambios
+# Pestañas de captura de datos (1 a 4)
 with tab1:
     with st.form("info_lote_form"):
         col1, col2, col3 = st.columns(3);
@@ -113,7 +121,18 @@ with tab1:
         with col2: fecha_nacimiento = st.date_input("Fecha de Nacimiento"); cantidad_total = st.number_input("Cantidad Total de Pollitos", min_value=1, step=1000); evaluador = st.text_input("Nombre del Evaluador")
         with col3: temp_furgon = st.slider("Temperatura Furgón (°C)", 18.0, 25.0, 22.0); temp_cascara = st.slider("Temperatura Cáscara (°C)", 16.0, 20.0, 18.0); temp_salon = st.slider("Temperatura Salón (°C)", 18.0, 24.0, 21.0); huevo_sudado = st.toggle("Huevo Sudado", value=False); aves_por_caja = st.number_input("Aves por Caja", min_value=50, max_value=150, value=100)
         st.markdown("---"); st.header("Puntuación Detallada de la Muestra (10 Pollitos)");
-        edited_df = st.data_editor(st.session_state.pollitos_data, hide_index=True, num_rows="fixed", key="data_editor")
+        
+        edited_df = st.data_editor(
+            st.session_state.pollitos_data, 
+            hide_index=True, 
+            num_rows="fixed", 
+            key="data_editor",
+            column_config={
+                "peso_gr": st.column_config.NumberColumn("Peso (gr)", min_value=25, max_value=70, format="%.2f g"),
+                "temp_cloacal": st.column_config.NumberColumn("Temp. Cloacal (°C)", min_value=38, max_value=42, format="%.2f °C")
+            }
+        )
+        
         if st.form_submit_button("Guardar Evaluación de Incubadora"):
             if not lote_id or not granja_origen or not evaluador: st.error("Por favor, completa los campos de información general.")
             else:
@@ -125,6 +144,7 @@ with tab1:
                     columnas_detalle = ['lote_id', 'numero_pollito', 'vitalidad_ok', 'ombligo_ok', 'patas_ok', 'ojos_ok', 'pico_ok', 'abdomen_ok', 'plumon_ok', 'cuello_ok', 'peso_gr', 'temp_cloacal']; detalle_data = df_detalle[columnas_detalle].values.tolist();
                     try: spreadsheet.worksheet("Lotes_Resumen").append_row(resumen_data); spreadsheet.worksheet("Pollitos_Detalle").append_rows(detalle_data); st.success(f"¡Éxito! Evaluación de incubadora del lote {lote_id} guardada."); st.balloons();
                     except Exception as e: st.error(f"Error al guardar: {e}")
+
 with tab2:
     with st.form("transporte_form"):
         t_col1, t_col2, t_col3 = st.columns(3);
@@ -146,7 +166,18 @@ with tab3:
         with g_col1: lote_id_granja = st.text_input("ID del Lote"); fecha_recepcion = st.date_input("Fecha de Recepción"); evaluador_granja = st.text_input("Nombre del Evaluador en Granja")
         with g_col2: st.subheader("Condiciones del Galpón"); temp_ambiente_c = st.slider("Temperatura Ambiente (°C)", 28.0, 35.0, 32.0); hum_relativa_pct = st.slider("Humedad Relativa (%)", 40, 80, 65); temp_cama_c = st.slider("Temperatura de Cama (°C)", 28.0, 34.0, 31.0)
         st.markdown("---"); st.subheader("Medición Detallada de la Muestra (10 Pollitos)");
-        edited_granja_df = st.data_editor(st.session_state.granja_detalle_data, hide_index=True, num_rows="fixed", column_config={"numero_pollito": st.column_config.NumberColumn("Pollito #", disabled=True), "temp_cloacal_granja_c": st.column_config.NumberColumn("Temp. Cloacal (°C)"), "peso_granja_gr": st.column_config.NumberColumn("Peso (gr)")})
+        
+        edited_granja_df = st.data_editor(
+            st.session_state.granja_detalle_data, 
+            hide_index=True, 
+            num_rows="fixed", 
+            column_config={
+                "numero_pollito": st.column_config.NumberColumn("Pollito #", disabled=True),
+                "temp_cloacal_granja_c": st.column_config.NumberColumn("Temp. Cloacal (°C)", min_value=38, max_value=42, format="%.2f °C"),
+                "peso_granja_gr": st.column_config.NumberColumn("Peso (gr)", min_value=25, max_value=70, format="%.2f g")
+            }
+        )
+        
         st.markdown("---"); st.subheader("Prueba de Buche Lleno (a las 24 horas)");
         b_col1, b_col2 = st.columns(2);
         with b_col1: muestra_buche_n = st.number_input("N° Pollitos Muestreados", min_value=10, value=30)
@@ -172,14 +203,13 @@ with tab4:
             else:
                 with st.spinner("Guardando..."):
                     seguimiento_data = [lote_id_seguimiento, str(date.today()), int(mortalidad_7_dias_n)];
-                    try: spreadsheet.worksheet("Seguimiento_7_Dias").append_row(seguimiento_data); st.success(f"¡Éxito! Seguimiento del lote {lote_id_seguimiento} guardado.")
+                    try: spreadsheet.worksheet("Seguimiento_7_Dias").append_row(seguimiento_data); st.success(f"¡Éxito! Seguimiento del lote {lote_id_seguimiento} guardada.")
                     except Exception as e: st.error(f"Error al guardar: {e}")
 
 # --- Pestaña 5: Dashboard de Análisis ---
 with tab5:
     st.header("Dashboard de Análisis de Lotes")
     
-    # Botón para forzar la recarga de datos
     if st.button('Refrescar Datos'):
         st.cache_data.clear()
         st.rerun()
@@ -193,7 +223,6 @@ with tab5:
         if lote_seleccionado:
             st.markdown(f"### Análisis para el Lote: **{lote_seleccionado}**")
             
-            # --- KPIs ---
             kpi1, kpi2, kpi3, kpi4 = st.columns(4)
             lote_resumen_data = lotes_resumen[lotes_resumen['lote_id'] == lote_seleccionado].iloc[0]
 
@@ -219,7 +248,6 @@ with tab5:
 
             st.markdown("---")
             
-            # --- Gráficos ---
             g_col1, g_col2 = st.columns(2)
             with g_col1:
                 st.subheader("Análisis de Defectos (Incubadora)")
