@@ -5,8 +5,8 @@
 # Color primario (rojo Albateq) para elementos interactivos como botones, sliders, etc.
 primaryColor="#D32F2F"
 
-# Color de fondo principal (amarillo pollito muy claro para no cansar la vista)
-backgroundColor="#FFFDE7"
+# Color de fondo principal (ahora un tono casi blanco para mayor claridad)
+backgroundColor="#FAFAFA"
 
 # Color de fondo secundario (amarillo un poco más oscuro) para la barra lateral y las pestañas inactivas
 secondaryBackgroundColor="#FFF9C4"
