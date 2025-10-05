@@ -1,1 +1,19 @@
+# Archivo de Configuración de Tema para Streamlit
+# Método Rodriguez - Calidad de Pollito
+
+[theme]
+# Color primario (rojo Albateq) para elementos interactivos como botones, sliders, etc.
+primaryColor="#D32F2F"
+
+# Color de fondo principal (amarillo pollito muy claro para no cansar la vista)
+backgroundColor="#FFFDE7"
+
+# Color de fondo secundario (amarillo un poco más oscuro) para la barra lateral y las pestañas inactivas
+secondaryBackgroundColor="#FFF9C4"
+
+# Color del texto (oscuro para máxima legibilidad sobre el fondo claro)
+textColor="#212121"
+
+# Fuente a utilizar
+font="sans serif"
 
