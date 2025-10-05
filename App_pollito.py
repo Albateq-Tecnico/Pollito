@@ -118,7 +118,7 @@ initialize_session_state()
 
 # --- INTERFAZ DE USUARIO ---
 
-# --- MEJORA: Añadir logos e instrucciones en la barra lateral ---
+# --- BARRA LATERAL ---
 st.sidebar.image("pollito_logo_al.jpg", caption="Calidad desde el Origen")
 st.sidebar.markdown("---")
 st.sidebar.subheader("Instrucciones de Uso")
@@ -138,6 +138,15 @@ st.sidebar.info(
 
     **Paso 5: Dashboard**
     Seleccione un lote para visualizar sus KPIs, gráficos y recomendaciones.
+    """
+)
+st.sidebar.markdown("---")
+# --- MEJORA: Añadir nota de responsabilidad ---
+st.sidebar.caption(
+    """
+    **Nota de Responsabilidad:** Esta es una herramienta de apoyo para uso en granja. La utilización de los resultados es de su exclusiva responsabilidad. No sustituye la asesoría profesional y Albateq S.A. no se hace responsable por las decisiones tomadas con base en la información aquí presentada.
+    
+    *Desarrollado por la Dirección Técnica de Albateq (dtecnico@albateq.com) con el apoyo del Dr. Manuel Rodríguez Garzón MV.*
     """
 )
 
@@ -274,7 +283,6 @@ with tab5:
 
                 st.markdown("---")
                 
-                # --- GRÁFICOS DE DEFECTOS Y BOXPLOTS ---
                 g_col1, g_col2 = st.columns(2)
                 with g_col1:
                     st.subheader("Análisis de Defectos (Incubadora)")
@@ -298,7 +306,6 @@ with tab5:
 
                 st.markdown("---")
 
-                # --- NUEVOS GRÁFICOS: HISTOGRAMAS ---
                 st.subheader("Histogramas de Distribución de la Muestra")
                 h_col1, h_col2 = st.columns(2)
                 with h_col1:
@@ -308,11 +315,9 @@ with tab5:
                     fig_hist_temp = px.histogram(pollitos_detalle[pollitos_detalle['lote_id'] == str(lote_seleccionado)], x="temp_cloacal", title="Distribución de Temp. Cloacal (Incubadora)")
                     st.plotly_chart(fig_hist_temp, use_container_width=True)
                 
-                # --- NUEVA SECCIÓN: RECOMENDACIONES ---
                 st.markdown("---")
                 st.subheader("Recomendaciones Automáticas")
                 
-                # Recomendación por Puntuación
                 if puntuacion_final > 95:
                     st.success("✅ **Calidad de Pollito:** ¡Excelente! El proceso de incubación parece ser óptimo.")
                 elif puntuacion_final > 85:
@@ -320,9 +325,8 @@ with tab5:
                 else:
                     st.warning("⚠️ **Calidad de Pollito:** Puntuación baja. Es prioritario analizar el gráfico de defectos para encontrar la causa raíz en la incubadora (ej. ombligos mal curados pueden indicar problemas de T°/humedad en nacedora).")
 
-                # Recomendación por Mortalidad
                 if mortalidad_pct == 0:
-                    pass # No mostrar nada si no hay datos
+                    pass
                 elif mortalidad_pct < 1:
                     st.success("✅ **Mortalidad 7 Días:** Objetivo cumplido. El arranque del lote ha sido exitoso.")
                 elif mortalidad_pct < 2:
@@ -330,13 +334,11 @@ with tab5:
                 else:
                     st.error("🚨 **Mortalidad 7 Días:** ¡Alerta! La mortalidad es alta. Se requiere una investigación urgente de las condiciones de transporte, recepción y sanidad del lote.")
 
-                # Recomendación por Merma de Peso
                 if merma > 0 and merma < 4:
                     st.success("✅ **Merma de Peso:** Controlada. Las condiciones durante el transporte (tiempo, T°, humedad) fueron adecuadas.")
                 elif merma >= 4:
                     st.warning("⚠️ **Merma de Peso:** Elevada. Indica posible deshidratación. Revise los tiempos de espera y las condiciones ambientales del vehículo de transporte.")
 
-                # Recomendación por Buche Lleno
                 if buche_lleno > 95:
                     st.success("✅ **Buche Lleno (24h):** Excelente. El estímulo para el consumo de agua y alimento es óptimo. Verifique que las condiciones se mantengan.")
                 elif buche_lleno > 0:
