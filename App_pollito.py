@@ -5,6 +5,7 @@ import pandas as pd
 import numpy as np
 from datetime import datetime, date
 import plotly.graph_objects as go
+import plotly.express as px
 
 # --- CONFIGURACIÓN DE PÁGINA Y ESTILOS ---
 st.set_page_config(page_title="Método Rodriguez - Calidad de Pollito", layout="wide")
@@ -77,7 +78,6 @@ def load_all_data(_spreadsheet):
                 headers = values.pop(0)
                 dataframes[df_key] = pd.DataFrame(values, columns=headers)
 
-        # --- MEJORA: Estandarizar lote_id como string para evitar errores de tipo ---
         for df_name, df in dataframes.items():
             if not df.empty and 'lote_id' in df.columns:
                 df['lote_id'] = df['lote_id'].astype(str)
@@ -117,7 +117,30 @@ def initialize_session_state():
 initialize_session_state()
 
 # --- INTERFAZ DE USUARIO ---
+
+# --- MEJORA: Añadir logos e instrucciones en la barra lateral ---
 st.sidebar.image("pollito_logo_al.jpg", caption="Calidad desde el Origen")
+st.sidebar.markdown("---")
+st.sidebar.subheader("Instrucciones de Uso")
+st.sidebar.info(
+    """
+    **Paso 1: Incubadora**
+    Complete la información del lote y los datos de la muestra de 10 pollitos antes del despacho.
+
+    **Paso 2: Transporte**
+    Registre los datos del viaje una vez que el vehículo llegue a la granja.
+
+    **Paso 3: Granja**
+    Tome las mediciones de la muestra de pollitos y las condiciones del galpón a la llegada.
+
+    **Paso 4: Seguimiento**
+    Pasados 7 días, ingrese la mortalidad acumulada para el lote.
+
+    **Paso 5: Dashboard**
+    Seleccione un lote para visualizar sus KPIs, gráficos y recomendaciones.
+    """
+)
+
 
 col_titulo, col_logo = st.columns([3, 1])
 with col_titulo:
@@ -217,7 +240,6 @@ with tab5:
         if lote_seleccionado:
             st.markdown(f"### Análisis para el Lote: **{lote_seleccionado}**")
             
-            # --- MEJORA: Prevenir IndexError comprobando si el lote existe ---
             lote_resumen_data_df = lotes_resumen[lotes_resumen['lote_id'] == str(lote_seleccionado)]
 
             if lote_resumen_data_df.empty:
@@ -226,12 +248,16 @@ with tab5:
                 lote_resumen_data = lote_resumen_data_df.iloc[0]
                 kpi1, kpi2, kpi3, kpi4 = st.columns(4)
 
-                kpi1.metric("Puntuación Calidad (Incubadora)", f"{lote_resumen_data.get('puntuacion_final', 0):.2f} / 100")
+                puntuacion_final = lote_resumen_data.get('puntuacion_final', 0)
+                kpi1.metric("Puntuación Calidad (Incubadora)", f"{puntuacion_final:.2f} / 100")
                 
+                buche_lleno = 0
                 buche_lleno_data = granja_resumen[granja_resumen['lote_id'] == str(lote_seleccionado)]
                 if not buche_lleno_data.empty:
-                    kpi2.metric("% Buche Lleno (24h)", f"{buche_lleno_data.iloc[0].get('buche_lleno_24h_pct', 0):.2f}%")
+                    buche_lleno = buche_lleno_data.iloc[0].get('buche_lleno_24h_pct', 0)
+                    kpi2.metric("% Buche Lleno (24h)", f"{buche_lleno:.2f}%")
                 
+                mortalidad_pct = 0
                 mortalidad_data = seguimiento[seguimiento['lote_id'] == str(lote_seleccionado)]
                 if not mortalidad_data.empty and not mortalidad_data['mortalidad_7_dias_n'].isnull().all():
                     mortalidad_7d = mortalidad_data['mortalidad_7_dias_n'].iloc[0]
@@ -239,15 +265,16 @@ with tab5:
                     mortalidad_pct = (mortalidad_7d / total_aves) * 100 if total_aves > 0 else 0
                     kpi3.metric("Mortalidad 7 Días", f"{mortalidad_pct:.2f}%", help=f"{int(mortalidad_7d)} aves")
 
+                merma = 0
                 peso_incubadora = pollitos_detalle[pollitos_detalle['lote_id'] == str(lote_seleccionado)]['peso_gr'].mean()
                 peso_granja = granja_detalle[granja_detalle['lote_id'] == str(lote_seleccionado)]['peso_granja_gr'].mean()
-                
                 if not np.isnan(peso_incubadora) and not np.isnan(peso_granja):
                     merma = ((peso_incubadora - peso_granja) / peso_incubadora) * 100 if peso_incubadora > 0 else 0
                     kpi4.metric("Merma de Peso (%)", f"{merma:.2f}%", help=f"Incubadora: {peso_incubadora:.2f}gr | Granja: {peso_granja:.2f}gr")
 
                 st.markdown("---")
                 
+                # --- GRÁFICOS DE DEFECTOS Y BOXPLOTS ---
                 g_col1, g_col2 = st.columns(2)
                 with g_col1:
                     st.subheader("Análisis de Defectos (Incubadora)")
@@ -262,16 +289,58 @@ with tab5:
                     st.subheader("Comparativa de Pesos")
                     pesos_incubadora = pollitos_detalle[pollitos_detalle['lote_id'] == str(lote_seleccionado)]['peso_gr'].dropna()
                     pesos_granja = granja_detalle[granja_detalle['lote_id'] == str(lote_seleccionado)]['peso_granja_gr'].dropna()
-                    
                     if not pesos_incubadora.empty or not pesos_granja.empty:
                         fig = go.Figure()
-                        if not pesos_incubadora.empty:
-                            fig.add_trace(go.Box(y=pesos_incubadora, name='Incubadora', marker_color='blue'))
-                        if not pesos_granja.empty:
-                            fig.add_trace(go.Box(y=pesos_granja, name='Granja', marker_color='green'))
+                        if not pesos_incubadora.empty: fig.add_trace(go.Box(y=pesos_incubadora, name='Incubadora', marker_color='blue'))
+                        if not pesos_granja.empty: fig.add_trace(go.Box(y=pesos_granja, name='Granja', marker_color='green'))
                         fig.update_layout(title_text="Distribución de Pesos (Incubadora vs. Granja)", yaxis_title="Peso (gramos)")
                         st.plotly_chart(fig, use_container_width=True)
 
+                st.markdown("---")
+
+                # --- NUEVOS GRÁFICOS: HISTOGRAMAS ---
+                st.subheader("Histogramas de Distribución de la Muestra")
+                h_col1, h_col2 = st.columns(2)
+                with h_col1:
+                    fig_hist_peso = px.histogram(pollitos_detalle[pollitos_detalle['lote_id'] == str(lote_seleccionado)], x="peso_gr", title="Distribución de Peso (Incubadora)")
+                    st.plotly_chart(fig_hist_peso, use_container_width=True)
+                with h_col2:
+                    fig_hist_temp = px.histogram(pollitos_detalle[pollitos_detalle['lote_id'] == str(lote_seleccionado)], x="temp_cloacal", title="Distribución de Temp. Cloacal (Incubadora)")
+                    st.plotly_chart(fig_hist_temp, use_container_width=True)
+                
+                # --- NUEVA SECCIÓN: RECOMENDACIONES ---
+                st.markdown("---")
+                st.subheader("Recomendaciones Automáticas")
+                
+                # Recomendación por Puntuación
+                if puntuacion_final > 95:
+                    st.success("✅ **Calidad de Pollito:** ¡Excelente! El proceso de incubación parece ser óptimo.")
+                elif puntuacion_final > 85:
+                    st.info("👍 **Calidad de Pollito:** Buena. Revise el gráfico de defectos para identificar áreas de mejora menores.")
+                else:
+                    st.warning("⚠️ **Calidad de Pollito:** Puntuación baja. Es prioritario analizar el gráfico de defectos para encontrar la causa raíz en la incubadora (ej. ombligos mal curados pueden indicar problemas de T°/humedad en nacedora).")
+
+                # Recomendación por Mortalidad
+                if mortalidad_pct == 0:
+                    pass # No mostrar nada si no hay datos
+                elif mortalidad_pct < 1:
+                    st.success("✅ **Mortalidad 7 Días:** Objetivo cumplido. El arranque del lote ha sido exitoso.")
+                elif mortalidad_pct < 2:
+                    st.info("👍 **Mortalidad 7 Días:** En el límite del objetivo. Monitoree de cerca las condiciones de manejo y bioseguridad en granja.")
+                else:
+                    st.error("🚨 **Mortalidad 7 Días:** ¡Alerta! La mortalidad es alta. Se requiere una investigación urgente de las condiciones de transporte, recepción y sanidad del lote.")
+
+                # Recomendación por Merma de Peso
+                if merma > 0 and merma < 4:
+                    st.success("✅ **Merma de Peso:** Controlada. Las condiciones durante el transporte (tiempo, T°, humedad) fueron adecuadas.")
+                elif merma >= 4:
+                    st.warning("⚠️ **Merma de Peso:** Elevada. Indica posible deshidratación. Revise los tiempos de espera y las condiciones ambientales del vehículo de transporte.")
+
+                # Recomendación por Buche Lleno
+                if buche_lleno > 95:
+                    st.success("✅ **Buche Lleno (24h):** Excelente. El estímulo para el consumo de agua y alimento es óptimo. Verifique que las condiciones se mantengan.")
+                elif buche_lleno > 0:
+                    st.warning("⚠️ **Buche Lleno (24h):** Por debajo del objetivo. Verifique la disponibilidad y fácil acceso al agua y alimento, la intensidad lumínica y la temperatura de la cama.")
     else:
         st.info("Aún no hay datos para mostrar. Guarda al menos una evaluación completa para empezar a ver los análisis.")
 
