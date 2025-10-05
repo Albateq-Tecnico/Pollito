@@ -52,21 +52,31 @@ def connect_to_google_sheets():
 
 spreadsheet = connect_to_google_sheets()
 
-# --- CARGA Y LIMPIEZA DE DATOS PARA EL DASHBOARD ---
+# --- CARGA Y LIMPIEZA DE DATOS PARA EL DASHBOARD (VERSIÓN ROBUSTA) ---
 @st.cache_data(ttl=600) # Cache por 10 minutos
 def load_all_data(_spreadsheet):
     if not _spreadsheet:
-        return None, None, None, None, None, None
+        return (None,) * 6
     try:
-        dataframes = {
-            "lotes_resumen": pd.DataFrame(_spreadsheet.worksheet("Lotes_Resumen").get_all_records()),
-            "pollitos_detalle": pd.DataFrame(_spreadsheet.worksheet("Pollitos_Detalle").get_all_records()),
-            "transporte": pd.DataFrame(_spreadsheet.worksheet("Transporte_Evaluacion").get_all_records()),
-            "granja_resumen": pd.DataFrame(_spreadsheet.worksheet("Granja_Evaluacion").get_all_records()),
-            "granja_detalle": pd.DataFrame(_spreadsheet.worksheet("Granja_Detalle_Temp").get_all_records()),
-            "seguimiento": pd.DataFrame(_spreadsheet.worksheet("Seguimiento_7_Dias").get_all_records())
+        df_names = {
+            "lotes_resumen": "Lotes_Resumen",
+            "pollitos_detalle": "Pollitos_Detalle",
+            "transporte": "Transporte_Evaluacion",
+            "granja_resumen": "Granja_Evaluacion",
+            "granja_detalle": "Granja_Detalle_Temp",
+            "seguimiento": "Seguimiento_7_Dias"
         }
-        
+        dataframes = {}
+
+        for df_key, sheet_name in df_names.items():
+            worksheet = _spreadsheet.worksheet(sheet_name)
+            values = worksheet.get_all_values()
+            if len(values) < 2: # Si no hay datos o solo encabezado
+                dataframes[df_key] = pd.DataFrame()
+            else:
+                headers = values.pop(0)
+                dataframes[df_key] = pd.DataFrame(values, columns=headers)
+
         # --- MEJORA: Corrección del problema de decimales (coma vs. punto) ---
         cols_to_convert = {
             "lotes_resumen": ['cantidad_total', 'temp_cloacal_promedio', 'puntuacion_final', 'uniformidad', 'cv_peso'],
@@ -77,7 +87,7 @@ def load_all_data(_spreadsheet):
         }
 
         for df_name, df in dataframes.items():
-            if df is not None:
+            if not df.empty:
                 for col in cols_to_convert.get(df_name, []):
                     if col in df.columns:
                         # La solución: reemplazar comas por puntos antes de convertir a número
@@ -86,7 +96,7 @@ def load_all_data(_spreadsheet):
                             errors='coerce'
                         )
                     else:
-                        df[col] = np.nan # Si la columna no existe, se crea vacía
+                        df[col] = np.nan
 
         return tuple(dataframes.values())
     except gspread.exceptions.WorksheetNotFound as e:
@@ -95,6 +105,7 @@ def load_all_data(_spreadsheet):
     except Exception as e:
         st.error(f"Ocurrió un error al cargar los datos para el dashboard: {e}")
         return (None,) * 6
+
 
 # --- INICIALIZACIÓN DEL ESTADO DE SESIÓN ---
 def initialize_session_state():
@@ -121,7 +132,6 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs(["Paso 1: Incubadora", "Paso 2: Transport
 # Pestañas de captura de datos (1 a 4)
 with tab1:
     with st.form("info_lote_form"):
-        # ... (código sin cambios)
         col1, col2, col3 = st.columns(3);
         with col1: lote_id = st.text_input("ID del Lote"); granja_origen = st.text_input("Granja de Origen"); linea_genetica = st.selectbox("Línea Genética", ["Cobb", "Ross", "Otra"])
         with col2: fecha_nacimiento = st.date_input("Fecha de Nacimiento"); cantidad_total = st.number_input("Cantidad Total de Pollitos", min_value=1, step=1000); evaluador = st.text_input("Nombre del Evaluador")
@@ -141,7 +151,6 @@ with tab1:
                     except Exception as e: st.error(f"Error al guardar: {e}")
 
 with tab2:
-    # ... (código sin cambios)
     with st.form("transporte_form"):
         t_col1, t_col2, t_col3 = st.columns(3);
         with t_col1: lote_id_transporte = st.text_input("ID del Lote"); fecha_transporte = st.date_input("Fecha del Transporte"); placa_vehiculo = st.text_input("Placa del Vehículo"); conductor = st.text_input("Nombre del Conductor");
@@ -157,7 +166,6 @@ with tab2:
                     try: spreadsheet.worksheet("Transporte_Evaluacion").append_row(transporte_data); st.success(f"¡Éxito! Evaluación de transporte del lote {lote_id_transporte} guardada.")
                     except Exception as e: st.error(f"Error al guardar: {e}")
 with tab3:
-    # ... (código sin cambios)
     with st.form("granja_form"):
         g_col1, g_col2 = st.columns(2);
         with g_col1: lote_id_granja = st.text_input("ID del Lote"); fecha_recepcion = st.date_input("Fecha de Recepción"); evaluador_granja = st.text_input("Nombre del Evaluador en Granja")
@@ -179,7 +187,6 @@ with tab3:
                     try: spreadsheet.worksheet("Granja_Evaluacion").append_row(resumen_granja_data); spreadsheet.worksheet("Granja_Detalle_Temp").append_rows(detalle_granja_data); st.success(f"¡Éxito! Evaluación de recepción del lote {lote_id_granja} guardada.")
                     except Exception as e: st.error(f"Error al guardar: {e}")
 with tab4:
-    # ... (código sin cambios)
     with st.form("seguimiento_form"):
         st.info("Registra aquí la mortalidad acumulada al final de la primera semana.");
         s_col1, s_col2 = st.columns(2);
@@ -220,11 +227,11 @@ with tab5:
                 kpi2.metric("% Buche Lleno (24h)", f"{buche_lleno_data.iloc[0].get('buche_lleno_24h_pct', 0):.2f}%")
             
             mortalidad_data = seguimiento[seguimiento['lote_id'] == lote_seleccionado]
-            if not mortalidad_data.empty:
+            if not mortalidad_data.empty and not mortalidad_data['mortalidad_7_dias_n'].isnull().all():
                 mortalidad_7d = mortalidad_data['mortalidad_7_dias_n'].iloc[0]
                 total_aves = lote_resumen_data.get('cantidad_total', 0)
                 mortalidad_pct = (mortalidad_7d / total_aves) * 100 if total_aves > 0 else 0
-                kpi3.metric("Mortalidad 7 Días", f"{mortalidad_pct:.2f}%", help=f"{mortalidad_7d} aves")
+                kpi3.metric("Mortalidad 7 Días", f"{mortalidad_pct:.2f}%", help=f"{int(mortalidad_7d)} aves")
 
             peso_incubadora = pollitos_detalle[pollitos_detalle['lote_id'] == lote_seleccionado]['peso_gr'].mean()
             peso_granja = granja_detalle[granja_detalle['lote_id'] == lote_seleccionado]['peso_granja_gr'].mean()
@@ -239,21 +246,25 @@ with tab5:
             with g_col1:
                 st.subheader("Análisis de Defectos (Incubadora)")
                 detalle_lote = pollitos_detalle[pollitos_detalle['lote_id'] == lote_seleccionado]
-                defect_cols = ['vitalidad_ok', 'ombligo_ok', 'patas_ok', 'ojos_ok', 'pico_ok', 'abdomen_ok', 'plumon_ok', 'cuello_ok']
-                defect_counts = {col.replace('_ok', '').capitalize(): (detalle_lote[col].astype(str).str.upper() == 'FALSE').sum() for col in defect_cols}
-                df_defects = pd.DataFrame(list(defect_counts.items()), columns=['Defecto', 'Número de Pollitos']).sort_values(by='Número de Pollitos', ascending=False)
-                st.bar_chart(df_defects.set_index('Defecto'))
+                if not detalle_lote.empty:
+                    defect_cols = ['vitalidad_ok', 'ombligo_ok', 'patas_ok', 'ojos_ok', 'pico_ok', 'abdomen_ok', 'plumon_ok', 'cuello_ok']
+                    defect_counts = {col.replace('_ok', '').capitalize(): (detalle_lote[col].astype(str).str.upper() == 'FALSE').sum() for col in defect_cols}
+                    df_defects = pd.DataFrame(list(defect_counts.items()), columns=['Defecto', 'Número de Pollitos']).sort_values(by='Número de Pollitos', ascending=False)
+                    st.bar_chart(df_defects.set_index('Defecto'))
 
             with g_col2:
                 st.subheader("Comparativa de Pesos")
                 pesos_incubadora = pollitos_detalle[pollitos_detalle['lote_id'] == lote_seleccionado]['peso_gr'].dropna()
                 pesos_granja = granja_detalle[granja_detalle['lote_id'] == lote_seleccionado]['peso_granja_gr'].dropna()
                 
-                fig = go.Figure()
-                fig.add_trace(go.Box(y=pesos_incubadora, name='Incubadora', marker_color='blue'))
-                fig.add_trace(go.Box(y=pesos_granja, name='Granja', marker_color='green'))
-                fig.update_layout(title_text="Distribución de Pesos (Incubadora vs. Granja)", yaxis_title="Peso (gramos)")
-                st.plotly_chart(fig, use_container_width=True)
+                if not pesos_incubadora.empty or not pesos_granja.empty:
+                    fig = go.Figure()
+                    if not pesos_incubadora.empty:
+                        fig.add_trace(go.Box(y=pesos_incubadora, name='Incubadora', marker_color='blue'))
+                    if not pesos_granja.empty:
+                        fig.add_trace(go.Box(y=pesos_granja, name='Granja', marker_color='green'))
+                    fig.update_layout(title_text="Distribución de Pesos (Incubadora vs. Granja)", yaxis_title="Peso (gramos)")
+                    st.plotly_chart(fig, use_container_width=True)
 
     else:
         st.info("Aún no hay datos para mostrar. Guarda al menos una evaluación completa para empezar a ver los análisis.")
