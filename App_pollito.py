@@ -71,13 +71,17 @@ def load_all_data(_spreadsheet):
         for df_key, sheet_name in df_names.items():
             worksheet = _spreadsheet.worksheet(sheet_name)
             values = worksheet.get_all_values()
-            if len(values) < 2: # Si no hay datos o solo encabezado
+            if len(values) < 2:
                 dataframes[df_key] = pd.DataFrame()
             else:
                 headers = values.pop(0)
                 dataframes[df_key] = pd.DataFrame(values, columns=headers)
 
-        # --- MEJORA: Corrección del problema de decimales (coma vs. punto) ---
+        # --- MEJORA: Estandarizar lote_id como string para evitar errores de tipo ---
+        for df_name, df in dataframes.items():
+            if not df.empty and 'lote_id' in df.columns:
+                df['lote_id'] = df['lote_id'].astype(str)
+
         cols_to_convert = {
             "lotes_resumen": ['cantidad_total', 'temp_cloacal_promedio', 'puntuacion_final', 'uniformidad', 'cv_peso'],
             "pollitos_detalle": ['numero_pollito', 'peso_gr', 'temp_cloacal'],
@@ -90,11 +94,7 @@ def load_all_data(_spreadsheet):
             if not df.empty:
                 for col in cols_to_convert.get(df_name, []):
                     if col in df.columns:
-                        # La solución: reemplazar comas por puntos antes de convertir a número
-                        df[col] = pd.to_numeric(
-                            df[col].astype(str).str.replace(',', '.'), 
-                            errors='coerce'
-                        )
+                        df[col] = pd.to_numeric(df[col].astype(str).str.replace(',', '.'), errors='coerce')
                     else:
                         df[col] = np.nan
 
@@ -217,54 +217,60 @@ with tab5:
         if lote_seleccionado:
             st.markdown(f"### Análisis para el Lote: **{lote_seleccionado}**")
             
-            kpi1, kpi2, kpi3, kpi4 = st.columns(4)
-            lote_resumen_data = lotes_resumen[lotes_resumen['lote_id'] == lote_seleccionado].iloc[0]
+            # --- MEJORA: Prevenir IndexError comprobando si el lote existe ---
+            lote_resumen_data_df = lotes_resumen[lotes_resumen['lote_id'] == str(lote_seleccionado)]
 
-            kpi1.metric("Puntuación Calidad (Incubadora)", f"{lote_resumen_data.get('puntuacion_final', 0):.2f} / 100")
-            
-            buche_lleno_data = granja_resumen[granja_resumen['lote_id'] == lote_seleccionado]
-            if not buche_lleno_data.empty:
-                kpi2.metric("% Buche Lleno (24h)", f"{buche_lleno_data.iloc[0].get('buche_lleno_24h_pct', 0):.2f}%")
-            
-            mortalidad_data = seguimiento[seguimiento['lote_id'] == lote_seleccionado]
-            if not mortalidad_data.empty and not mortalidad_data['mortalidad_7_dias_n'].isnull().all():
-                mortalidad_7d = mortalidad_data['mortalidad_7_dias_n'].iloc[0]
-                total_aves = lote_resumen_data.get('cantidad_total', 0)
-                mortalidad_pct = (mortalidad_7d / total_aves) * 100 if total_aves > 0 else 0
-                kpi3.metric("Mortalidad 7 Días", f"{mortalidad_pct:.2f}%", help=f"{int(mortalidad_7d)} aves")
+            if lote_resumen_data_df.empty:
+                st.warning(f"No se encontró un resumen para el lote {lote_seleccionado}. Verifica que los datos se guardaron correctamente.")
+            else:
+                lote_resumen_data = lote_resumen_data_df.iloc[0]
+                kpi1, kpi2, kpi3, kpi4 = st.columns(4)
 
-            peso_incubadora = pollitos_detalle[pollitos_detalle['lote_id'] == lote_seleccionado]['peso_gr'].mean()
-            peso_granja = granja_detalle[granja_detalle['lote_id'] == lote_seleccionado]['peso_granja_gr'].mean()
-            
-            if not np.isnan(peso_incubadora) and not np.isnan(peso_granja):
-                merma = ((peso_incubadora - peso_granja) / peso_incubadora) * 100 if peso_incubadora > 0 else 0
-                kpi4.metric("Merma de Peso (%)", f"{merma:.2f}%", help=f"Incubadora: {peso_incubadora:.2f}gr | Granja: {peso_granja:.2f}gr")
-
-            st.markdown("---")
-            
-            g_col1, g_col2 = st.columns(2)
-            with g_col1:
-                st.subheader("Análisis de Defectos (Incubadora)")
-                detalle_lote = pollitos_detalle[pollitos_detalle['lote_id'] == lote_seleccionado]
-                if not detalle_lote.empty:
-                    defect_cols = ['vitalidad_ok', 'ombligo_ok', 'patas_ok', 'ojos_ok', 'pico_ok', 'abdomen_ok', 'plumon_ok', 'cuello_ok']
-                    defect_counts = {col.replace('_ok', '').capitalize(): (detalle_lote[col].astype(str).str.upper() == 'FALSE').sum() for col in defect_cols}
-                    df_defects = pd.DataFrame(list(defect_counts.items()), columns=['Defecto', 'Número de Pollitos']).sort_values(by='Número de Pollitos', ascending=False)
-                    st.bar_chart(df_defects.set_index('Defecto'))
-
-            with g_col2:
-                st.subheader("Comparativa de Pesos")
-                pesos_incubadora = pollitos_detalle[pollitos_detalle['lote_id'] == lote_seleccionado]['peso_gr'].dropna()
-                pesos_granja = granja_detalle[granja_detalle['lote_id'] == lote_seleccionado]['peso_granja_gr'].dropna()
+                kpi1.metric("Puntuación Calidad (Incubadora)", f"{lote_resumen_data.get('puntuacion_final', 0):.2f} / 100")
                 
-                if not pesos_incubadora.empty or not pesos_granja.empty:
-                    fig = go.Figure()
-                    if not pesos_incubadora.empty:
-                        fig.add_trace(go.Box(y=pesos_incubadora, name='Incubadora', marker_color='blue'))
-                    if not pesos_granja.empty:
-                        fig.add_trace(go.Box(y=pesos_granja, name='Granja', marker_color='green'))
-                    fig.update_layout(title_text="Distribución de Pesos (Incubadora vs. Granja)", yaxis_title="Peso (gramos)")
-                    st.plotly_chart(fig, use_container_width=True)
+                buche_lleno_data = granja_resumen[granja_resumen['lote_id'] == str(lote_seleccionado)]
+                if not buche_lleno_data.empty:
+                    kpi2.metric("% Buche Lleno (24h)", f"{buche_lleno_data.iloc[0].get('buche_lleno_24h_pct', 0):.2f}%")
+                
+                mortalidad_data = seguimiento[seguimiento['lote_id'] == str(lote_seleccionado)]
+                if not mortalidad_data.empty and not mortalidad_data['mortalidad_7_dias_n'].isnull().all():
+                    mortalidad_7d = mortalidad_data['mortalidad_7_dias_n'].iloc[0]
+                    total_aves = lote_resumen_data.get('cantidad_total', 0)
+                    mortalidad_pct = (mortalidad_7d / total_aves) * 100 if total_aves > 0 else 0
+                    kpi3.metric("Mortalidad 7 Días", f"{mortalidad_pct:.2f}%", help=f"{int(mortalidad_7d)} aves")
+
+                peso_incubadora = pollitos_detalle[pollitos_detalle['lote_id'] == str(lote_seleccionado)]['peso_gr'].mean()
+                peso_granja = granja_detalle[granja_detalle['lote_id'] == str(lote_seleccionado)]['peso_granja_gr'].mean()
+                
+                if not np.isnan(peso_incubadora) and not np.isnan(peso_granja):
+                    merma = ((peso_incubadora - peso_granja) / peso_incubadora) * 100 if peso_incubadora > 0 else 0
+                    kpi4.metric("Merma de Peso (%)", f"{merma:.2f}%", help=f"Incubadora: {peso_incubadora:.2f}gr | Granja: {peso_granja:.2f}gr")
+
+                st.markdown("---")
+                
+                g_col1, g_col2 = st.columns(2)
+                with g_col1:
+                    st.subheader("Análisis de Defectos (Incubadora)")
+                    detalle_lote = pollitos_detalle[pollitos_detalle['lote_id'] == str(lote_seleccionado)]
+                    if not detalle_lote.empty:
+                        defect_cols = ['vitalidad_ok', 'ombligo_ok', 'patas_ok', 'ojos_ok', 'pico_ok', 'abdomen_ok', 'plumon_ok', 'cuello_ok']
+                        defect_counts = {col.replace('_ok', '').capitalize(): (detalle_lote[col].astype(str).str.upper() == 'FALSE').sum() for col in defect_cols}
+                        df_defects = pd.DataFrame(list(defect_counts.items()), columns=['Defecto', 'Número de Pollitos']).sort_values(by='Número de Pollitos', ascending=False)
+                        st.bar_chart(df_defects.set_index('Defecto'))
+
+                with g_col2:
+                    st.subheader("Comparativa de Pesos")
+                    pesos_incubadora = pollitos_detalle[pollitos_detalle['lote_id'] == str(lote_seleccionado)]['peso_gr'].dropna()
+                    pesos_granja = granja_detalle[granja_detalle['lote_id'] == str(lote_seleccionado)]['peso_granja_gr'].dropna()
+                    
+                    if not pesos_incubadora.empty or not pesos_granja.empty:
+                        fig = go.Figure()
+                        if not pesos_incubadora.empty:
+                            fig.add_trace(go.Box(y=pesos_incubadora, name='Incubadora', marker_color='blue'))
+                        if not pesos_granja.empty:
+                            fig.add_trace(go.Box(y=pesos_granja, name='Granja', marker_color='green'))
+                        fig.update_layout(title_text="Distribución de Pesos (Incubadora vs. Granja)", yaxis_title="Peso (gramos)")
+                        st.plotly_chart(fig, use_container_width=True)
 
     else:
         st.info("Aún no hay datos para mostrar. Guarda al menos una evaluación completa para empezar a ver los análisis.")
