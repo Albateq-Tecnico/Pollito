@@ -70,13 +70,18 @@ def load_all_data(_spreadsheet):
         dataframes = {}
 
         for df_key, sheet_name in df_names.items():
-            worksheet = _spreadsheet.worksheet(sheet_name)
-            values = worksheet.get_all_values()
-            if len(values) < 2:
+            try:
+                worksheet = _spreadsheet.worksheet(sheet_name)
+                values = worksheet.get_all_values()
+                if len(values) < 2:
+                    dataframes[df_key] = pd.DataFrame()
+                else:
+                    headers = values.pop(0)
+                    dataframes[df_key] = pd.DataFrame(values, columns=headers)
+            except gspread.exceptions.WorksheetNotFound:
+                # No muestra error si falta una hoja, simplemente la omite
                 dataframes[df_key] = pd.DataFrame()
-            else:
-                headers = values.pop(0)
-                dataframes[df_key] = pd.DataFrame(values, columns=headers)
+
 
         for df_name, df in dataframes.items():
             if not df.empty and 'lote_id' in df.columns:
@@ -99,9 +104,6 @@ def load_all_data(_spreadsheet):
                         df[col] = np.nan
 
         return tuple(dataframes.values())
-    except gspread.exceptions.WorksheetNotFound as e:
-        st.error(f"Error al cargar datos: La hoja '{e.worksheet_title}' no fue encontrada. Por favor, créala.")
-        return (None,) * 6
     except Exception as e:
         st.error(f"Ocurrió un error al cargar los datos para el dashboard: {e}")
         return (None,) * 6
@@ -113,17 +115,20 @@ def initialize_session_state():
         st.session_state.pollitos_data = pd.DataFrame({'numero_pollito': range(1, 11), 'vitalidad_ok': [False]*10, 'ombligo_ok': [False]*10, 'patas_ok': [False]*10, 'ojos_ok': [False]*10, 'pico_ok': [False]*10, 'abdomen_ok': [False]*10, 'plumon_ok': [False]*10, 'cuello_ok': [False]*10, 'peso_gr': [40.0]*10, 'temp_cloacal': [40.0]*10})
     if 'granja_detalle_data' not in st.session_state:
         st.session_state.granja_detalle_data = pd.DataFrame({'numero_pollito': range(1, 11), 'temp_cloacal_granja_c': [40.0]*10, 'peso_granja_gr': [42.0]*10})
+    if 'huevo_data' not in st.session_state:
+        st.session_state.huevo_data = pd.DataFrame({'numero_huevo': range(1, 31), 'peso_huevo_gr': [60.0]*30})
 
 initialize_session_state()
 
 # --- INTERFAZ DE USUARIO ---
-
-# --- BARRA LATERAL ---
 st.sidebar.image("pollito_logo_al.jpg", caption="Calidad desde el Origen")
 st.sidebar.markdown("---")
 st.sidebar.subheader("Instrucciones de Uso")
 st.sidebar.info(
     """
+    **Paso 0: Recepción Huevo**
+    Evalúe el lote de huevo fértil al llegar a la planta de incubación.
+    
     **Paso 1: Incubadora**
     Complete la información del lote y los datos de la muestra de 10 pollitos antes del despacho.
 
@@ -141,7 +146,6 @@ st.sidebar.info(
     """
 )
 st.sidebar.markdown("---")
-# --- MEJORA: Añadir nota de responsabilidad ---
 st.sidebar.caption(
     """
     **Nota de Responsabilidad:** Esta es una herramienta de apoyo para uso en granja. La utilización de los resultados es de su exclusiva responsabilidad. No sustituye la asesoría profesional y Albateq S.A. no se hace responsable por las decisiones tomadas con base en la información aquí presentada.
@@ -149,7 +153,6 @@ st.sidebar.caption(
     *Desarrollado por la Dirección Técnica de Albateq (dtecnico@albateq.com) con el apoyo del Dr. Manuel Rodríguez Garzón MV.*
     """
 )
-
 
 col_titulo, col_logo = st.columns([3, 1])
 with col_titulo:
@@ -159,7 +162,55 @@ with col_logo:
 
 st.markdown("---")
 
-tab1, tab2, tab3, tab4, tab5 = st.tabs(["Paso 1: Incubadora", "Paso 2: Transporte", "Paso 3: Granja (Recepción)", "Paso 4: Seguimiento 7 Días", "Paso 5: Dashboard de Análisis"])
+tab0, tab1, tab2, tab3, tab4, tab5 = st.tabs(["Paso 0: Recepción Huevo", "Paso 1: Incubadora", "Paso 2: Transporte", "Paso 3: Granja (Recepción)", "Paso 4: Seguimiento 7 Días", "Paso 5: Dashboard de Análisis"])
+
+# --- Pestaña 0: Recepción de Huevo ---
+with tab0:
+    st.header("Evaluación de Recepción de Huevo Fértil")
+    with st.form("huevo_form"):
+        h_col1, h_col2, h_col3 = st.columns(3)
+        with h_col1:
+            lote_id_huevo = st.text_input("ID Lote de Huevo (Ej: LoteGranja_Fecha)")
+            granja_origen_huevo = st.text_input("Granja de Origen del Huevo")
+            edad_reproductoras = st.number_input("Edad Lote Reproductoras (semanas)", min_value=20, max_value=80, value=40)
+        with h_col2:
+            fecha_recepcion_huevo = st.date_input("Fecha de Recepción")
+            temp_camion = st.slider("Temperatura del Camión (°C)", 15.0, 25.0, 18.0)
+            tiempo_espera = st.number_input("Tiempo de Espera Descarga (min)", min_value=0, value=15)
+        with h_col3:
+            st.write("**Evaluación Física (Muestra)**")
+            huevos_sucios = st.number_input("N° Huevos Sucios en Muestra", min_value=0, step=1)
+            huevos_fisurados = st.number_input("N° Huevos Fisurados en Muestra", min_value=0, step=1)
+            total_muestra = st.number_input("Total Huevos en Muestra", min_value=30, value=100, step=10)
+
+        st.markdown("---")
+        st.subheader("Análisis de Peso de la Muestra (30 Huevos)")
+        edited_huevo_df = st.data_editor(st.session_state.huevo_data, hide_index=True, num_rows="fixed")
+
+        submitted_huevo = st.form_submit_button("Guardar Evaluación de Huevo")
+        if submitted_huevo:
+            if not lote_id_huevo or not granja_origen_huevo:
+                st.error("Por favor, complete al menos el ID del Lote y la Granja de Origen.")
+            else:
+                with st.spinner("Calculando y guardando..."):
+                    df_huevo = edited_huevo_df
+                    porc_sucios = (huevos_sucios / total_muestra) * 100 if total_muestra > 0 else 0
+                    porc_fisurados = (huevos_fisurados / total_muestra) * 100 if total_muestra > 0 else 0
+                    peso_promedio = df_huevo['peso_huevo_gr'].mean()
+                    peso_std = df_huevo['peso_huevo_gr'].std()
+                    cv_peso = (peso_std / peso_promedio) * 100 if peso_promedio > 0 else 0
+
+                    huevo_data_row = [
+                        lote_id_huevo, granja_origen_huevo, int(edad_reproductoras), str(fecha_recepcion_huevo),
+                        float(temp_camion), int(tiempo_espera), round(porc_sucios, 2), round(porc_fisurados, 2),
+                        round(peso_promedio, 2), round(cv_peso, 2)
+                    ]
+                    try:
+                        spreadsheet.worksheet("Huevo_Recepcion").append_row(huevo_data_row)
+                        st.success(f"¡Éxito! Evaluación del lote de huevo {lote_id_huevo} guardada.")
+                    except Exception as e:
+                        st.error(f"Error al guardar: {e}")
+
 
 # Pestañas de captura de datos (1 a 4)
 with tab1:
