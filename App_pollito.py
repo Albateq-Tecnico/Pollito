@@ -214,10 +214,6 @@ with tabs[4]: # Paso 4
             if not lote_id_seg: st.error("El ID del Lote es obligatorio.")
             else:
                 with st.spinner("Guardando..."):
-                    df_seg = edited_seg_df.copy()
-                    peso_promedio_7d = df_seg['peso_7d_gr'].mean()
-                    cv_peso_7d = (df_seg['peso_7d_gr'].std() / peso_promedio_7d) * 100 if peso_promedio_7d > 0 else 0
-                    
                     st.cache_data.clear()
                     h, lotes, p, t, granja, granja_det, sr, sd = load_all_data(spreadsheet)
                     
@@ -227,6 +223,9 @@ with tabs[4]: # Paso 4
                     if lote_info.empty:
                         st.error(f"Error: No se encontró el ID de Lote '{lote_id_seg}' en la hoja 'Lotes_Resumen'. Verifique que el ID sea correcto y que ya exista una evaluación de incubadora para este lote.")
                     else:
+                        df_seg = edited_seg_df.copy()
+                        peso_promedio_7d = df_seg['peso_7d_gr'].mean()
+                        cv_peso_7d = (df_seg['peso_7d_gr'].std() / peso_promedio_7d) * 100 if peso_promedio_7d > 0 else 0
                         peso_llegada = granja_detalle_info['peso_granja_gr'].mean() if not granja_detalle_info.empty else 0
                         gdp = (peso_promedio_7d - peso_llegada) / 7 if peso_llegada > 0 else 0
                         factor_crecimiento = peso_promedio_7d / peso_llegada if peso_llegada > 0 else 0
@@ -293,6 +292,7 @@ with tabs[5]: # Paso 5
                                 output.write("\n\n")
                 st.download_button("📥 Descargar CSV", output.getvalue(), f"analisis_lote_{lote_seleccionado}.csv", "text/csv")
 
+
             st.markdown("---")
             st.subheader("Evolución de Uniformidad (CV%) y Peso Promedio")
             
@@ -307,4 +307,3 @@ with tabs[5]: # Paso 5
             with plot_col2: st.plotly_chart(px.bar(df_peso, x='Fase', y='Peso Promedio (gr)', title="Evolución del Peso Promedio", text_auto='.2f'), use_container_width=True)
     else:
         st.info("Aún no hay datos para mostrar.")
-
