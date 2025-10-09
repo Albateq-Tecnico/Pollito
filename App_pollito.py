@@ -279,13 +279,16 @@ with tabs[5]: # Paso 5
                 all_dfs = {'lote_resumen': lotes, 'pollitos_incubadora': pollitos, 'transporte': transp, 'granja_resumen': granja, 'pollitos_granja': granja_det, 'seguimiento_resumen': seguim_res, 'seguimiento_detalle': seguim_det}
                 output = StringIO()
                 for name, df in all_dfs.items():
-                    if df is not None and not df.empty and 'lote_id' in df.columns:
-                        df_lote = df[df['lote_id'] == lote_seleccionado]
-                        if not df_lote.empty: 
-                            output.write(f"--- {name.upper()} ---\n")
-                            df_lote.to_csv(output, index=False)
-                            output.write("\n\n")
+                    if df is not None and not df.empty:
+                        id_col = 'lote_id' if 'lote_id' in df.columns else None
+                        if id_col:
+                            df_lote = df[df[id_col] == lote_seleccionado]
+                            if not df_lote.empty:
+                                output.write(f"--- {name.upper()} ---\n")
+                                df_lote.to_csv(output, index=False)
+                                output.write("\n\n")
                 st.download_button("📥 Descargar CSV", output.getvalue(), f"analisis_lote_{lote_seleccionado}.csv", "text/csv")
+
 
             st.markdown("---")
             st.subheader("Evolución de Uniformidad (CV%) y Peso Promedio")
