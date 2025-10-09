@@ -304,3 +304,4 @@ with tabs[5]: # Paso 5
             with plot_col2: st.plotly_chart(px.bar(df_peso, x='Fase', y='Peso Promedio (gr)', title="Evolución del Peso Promedio", text_auto='.2f'), use_container_width=True)
     else:
         st.info("Aún no hay datos para mostrar.")
+
