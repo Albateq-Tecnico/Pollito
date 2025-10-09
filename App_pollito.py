@@ -284,7 +284,7 @@ with tabs[5]: # Paso 5
                 output = StringIO()
                 for name, df in all_dfs.items():
                     if df is not None and not df.empty:
-                        id_col_name = 'lote_id' if 'lote_id' in df.columns else ('id_lote_huevo' if 'id_lote_huevo' in df.columns else None)
+                        id_col_name = next((col for col in ['id_lote_huevo', 'lote_id'] if col in df.columns), None)
                         if id_col_name:
                             df_lote = df[df[id_col_name] == lote_seleccionado]
                             if not df_lote.empty:
@@ -292,7 +292,6 @@ with tabs[5]: # Paso 5
                                 df_lote.to_csv(output, index=False)
                                 output.write("\n\n")
                 st.download_button("📥 Descargar CSV", output.getvalue(), f"analisis_lote_{lote_seleccionado}.csv", "text/csv")
-
 
             st.markdown("---")
             st.subheader("Evolución de Uniformidad (CV%) y Peso Promedio")
@@ -308,3 +307,4 @@ with tabs[5]: # Paso 5
             with plot_col2: st.plotly_chart(px.bar(df_peso, x='Fase', y='Peso Promedio (gr)', title="Evolución del Peso Promedio", text_auto='.2f'), use_container_width=True)
     else:
         st.info("Aún no hay datos para mostrar.")
+
