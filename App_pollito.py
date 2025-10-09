@@ -108,9 +108,10 @@ def calcular_puntuacion(df, sample_size):
     if not peso_col: return 0, 0
     
     for col in puntuaciones.keys():
-        df[col] = df[col].astype(bool)
+        if col in df.columns:
+            df[col] = df[col].astype(bool)
 
-    df['puntuacion_individual'] = sum(df[param] * (score / sample_size) for param, score in puntuaciones.items())
+    df['puntuacion_individual'] = sum(df[param] * (score / sample_size) for param, score in puntuaciones.items() if param in df.columns)
     df['puntuacion_individual'] += np.where(df[peso_col] >= 34, 9.5 / sample_size, 0)
     puntuacion_final = df['puntuacion_individual'].sum()
     
@@ -159,7 +160,7 @@ with tabs[1]: # Paso 1
                     temp_cloacal_promedio = edited_df['temp_cloacal'].mean(); cv_peso = (edited_df['peso_gr'].std() / edited_df['peso_gr'].mean()) * 100 if edited_df['peso_gr'].mean() > 0 else 0
                     resumen_data = [lote_id, granja_origen, linea_genetica, str(fecha_nacimiento), int(cantidad_total), evaluador, float(temp_furgon), float(temp_cascara), float(temp_salon), bool(huevo_sudado), int(aves_por_caja), round(temp_cloacal_promedio, 2), round(puntuacion_final, 2), round(uniformidad, 2), round(cv_peso, 2)]
                     df_detalle = edited_df.copy(); df_detalle.insert(0, 'lote_id', lote_id)
-                    df_detalle[df_detalle.select_dtypes(include=['bool']).columns] = df_detalle.select_dtypes(include=['bool']).astype(str).apply(lambda x: x.str.upper())
+                    for col in df_detalle.select_dtypes(include=['bool']).columns: df_detalle[col] = df_detalle[col].astype(str).str.upper()
                     try: spreadsheet.worksheet("Lotes_Resumen").append_row(resumen_data); spreadsheet.worksheet("Pollitos_Detalle").append_rows(df_detalle.values.tolist()); st.success(f"Evaluación de incubadora del lote {lote_id} guardada.")
                     except Exception as e: st.error(f"Error al guardar: {e}")
 
@@ -198,7 +199,7 @@ with tabs[3]: # Paso 3
                     buche_lleno_pct = (llenos_buche_24h_n / muestra_buche_n) * 100 if muestra_buche_n > 0 else 0
                     resumen_granja_data = [lote_id_granja, str(fecha_recepcion), evaluador_granja, float(temp_ambiente_c), int(hum_relativa_pct), float(temp_cama_c), round(buche_lleno_pct, 2), round(cv_temp, 2), round(cv_peso_granja, 2), round(puntuacion_final_granja, 2)]
                     df_granja_detalle = edited_granja_df.copy(); df_granja_detalle.insert(0, 'lote_id', lote_id_granja)
-                    df_granja_detalle[df_granja_detalle.select_dtypes(include=['bool']).columns] = df_granja_detalle.select_dtypes(include=['bool']).astype(str).apply(lambda x: x.str.upper())
+                    for col in df_granja_detalle.select_dtypes(include=['bool']).columns: df_granja_detalle[col] = df_granja_detalle[col].astype(str).str.upper()
                     try: spreadsheet.worksheet("Granja_Evaluacion").append_row(resumen_granja_data); spreadsheet.worksheet("Granja_Detalle_Calidad").append_rows(df_granja_detalle.values.tolist()); st.success(f"Evaluación de recepción del lote {lote_id_granja} guardada.")
                     except Exception as e: st.error(f"Error al guardar: {e}")
 
@@ -216,12 +217,11 @@ with tabs[4]: # Paso 4
                     df_seg = edited_seg_df.copy(); peso_promedio_7d = df_seg['peso_7d_gr'].mean(); cv_peso_7d = (df_seg['peso_7d_gr'].std() / peso_promedio_7d) * 100 if peso_promedio_7d > 0 else 0
                     h, lotes, p, t, granja, granja_det, sr, sd = load_all_data(spreadsheet)
                     
-                    # --- MEJORA: Verificación de existencia del lote ---
-                    lote_info = lotes[lotes['lote_id'] == lote_id_seg] if lotes is not None else pd.DataFrame()
-                    granja_detalle_info = granja_det[granja_det['lote_id'] == lote_id_seg] if granja_det is not None else pd.DataFrame()
+                    lote_info = lotes[lotes['lote_id'] == lote_id_seg] if lotes is not None and not lotes.empty else pd.DataFrame()
+                    granja_detalle_info = granja_det[granja_det['lote_id'] == lote_id_seg] if granja_det is not None and not granja_det.empty else pd.DataFrame()
 
                     if lote_info.empty:
-                        st.error(f"Error: No se encontró el ID de Lote '{lote_id_seg}' en la hoja 'Lotes_Resumen'. No se puede calcular la mortalidad.")
+                        st.error(f"Error: No se encontró el ID de Lote '{lote_id_seg}' en la hoja 'Lotes_Resumen'. Verifique que el ID sea correcto y que ya exista una evaluación de incubadora para este lote.")
                     else:
                         peso_llegada = granja_detalle_info['peso_granja_gr'].mean() if not granja_detalle_info.empty else 0
                         gdp = (peso_promedio_7d - peso_llegada) / 7 if peso_llegada > 0 else 0
@@ -230,7 +230,8 @@ with tabs[4]: # Paso 4
                         mortalidad_pct_7d = (mortalidad_7d_n / total_aves) * 100 if total_aves > 0 else 0
                         
                         resumen_data = [lote_id_seg, str(fecha_eval_7d), round(peso_promedio_7d, 2), round(cv_peso_7d, 2), round(gdp, 2), round(factor_crecimiento, 2), int(mortalidad_7d_n), round(mortalidad_pct_7d, 2)]
-                        df_seg_detalle = df_seg.copy(); df_seg_detalle.insert(0, 'lote_id', lote_id_seg); df_seg_detalle[df_seg_detalle.select_dtypes(include=['bool']).columns] = df_seg_detalle.select_dtypes(include=['bool']).astype(str).apply(lambda x: x.str.upper())
+                        df_seg_detalle = df_seg.copy(); df_seg_detalle.insert(0, 'lote_id', lote_id_seg);
+                        for col in df_seg_detalle.select_dtypes(include=['bool']).columns: df_seg_detalle[col] = df_seg_detalle[col].astype(str).str.upper()
                         
                         try:
                             spreadsheet.worksheet("Seguimiento_7_Dias_Resumen").append_row(resumen_data)
@@ -249,24 +250,28 @@ with tabs[5]: # Paso 5
     if lotes is not None and not lotes.empty:
         lote_seleccionado = st.selectbox("Selecciona un Lote para Analizar", options=sorted(lotes['lote_id'].unique(), reverse=True))
         if lote_seleccionado:
-            lote_data = lotes[lotes['lote_id'] == lote_seleccionado].iloc[0]
+            lote_data_df = lotes[lotes['lote_id'] == lote_seleccionado]
+            if lote_data_df.empty:
+                 st.warning(f"No se encontró información para el lote {lote_seleccionado}.")
+                 st.stop()
+            lote_data = lote_data_df.iloc[0]
             
             kpi_col, dl_col = st.columns([4, 1])
             with kpi_col: kpi1, kpi2, kpi3, kpi4, kpi5 = st.columns(5)
             
             p_inc = lote_data.get('puntuacion_final', 0); rating, r_color = get_score_rating(p_inc); kpi1.markdown(f"**Calidad Incubadora** <h3 style='color:{r_color};'>{p_inc:.1f}</h3>", unsafe_allow_html=True)
             
-            granja_data = granja[granja['lote_id'] == lote_seleccionado]
+            granja_data = granja[granja['lote_id'] == lote_seleccionado] if granja is not None else pd.DataFrame()
             if not granja_data.empty:
                 p_gra = granja_data.iloc[0].get('puntuacion_final_granja', 0); rating, r_color = get_score_rating(p_gra); caida_calidad = ((p_inc - p_gra) / p_inc) * 100 if p_inc > 0 else 0
                 kpi2.metric("Calidad Granja", f"{p_gra:.1f}", delta=f"{-caida_calidad:.1f}%", delta_color="inverse")
                 kpi3.metric("% Buche Lleno", f"{granja_data.iloc[0].get('buche_lleno_24h_pct', 0):.1f}%")
 
-            seg_data = seguim_res[seguim_res['lote_id'] == lote_seleccionado]
+            seg_data = seguim_res[seguim_res['lote_id'] == lote_seleccionado] if seguim_res is not None else pd.DataFrame()
             if not seg_data.empty: kpi4.metric("Mortalidad 7d", f"{seg_data.iloc[0].get('mortalidad_acumulada_7d_pct', 0):.2f}%")
 
-            p_inc_w = pollitos[pollitos['lote_id'] == lote_seleccionado]['peso_gr'].mean() if pollitos is not None else 0
-            p_gra_w = granja_det[granja_det['lote_id'] == lote_seleccionado]['peso_granja_gr'].mean() if granja_det is not None else 0
+            p_inc_w = pollitos[pollitos['lote_id'] == lote_seleccionado]['peso_gr'].mean() if pollitos is not None and not pollitos.empty else 0
+            p_gra_w = granja_det[granja_det['lote_id'] == lote_seleccionado]['peso_granja_gr'].mean() if granja_det is not None and not granja_det.empty else 0
             if p_inc_w > 0 and p_gra_w > 0: kpi5.metric("Merma Peso", f"{((p_inc_w - p_gra_w) / p_inc_w) * 100:.2f}%")
 
             with dl_col:
@@ -274,9 +279,12 @@ with tabs[5]: # Paso 5
                 all_dfs = {'lote_resumen': lotes, 'pollitos_incubadora': pollitos, 'transporte': transp, 'granja_resumen': granja, 'pollitos_granja': granja_det, 'seguimiento_resumen': seguim_res, 'seguimiento_detalle': seguim_det}
                 output = StringIO()
                 for name, df in all_dfs.items():
-                    if df is not None:
-                        df_lote = df[df.columns[0] == lote_seleccionado] if not df.empty else pd.DataFrame()
-                        if not df_lote.empty: output.write(f"--- {name.upper()} ---\n"); df_lote.to_csv(output, index=False); output.write("\n\n")
+                    if df is not None and not df.empty and 'lote_id' in df.columns:
+                        df_lote = df[df['lote_id'] == lote_seleccionado]
+                        if not df_lote.empty: 
+                            output.write(f"--- {name.upper()} ---\n")
+                            df_lote.to_csv(output, index=False)
+                            output.write("\n\n")
                 st.download_button("📥 Descargar CSV", output.getvalue(), f"analisis_lote_{lote_seleccionado}.csv", "text/csv")
 
             st.markdown("---")
