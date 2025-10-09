@@ -217,19 +217,20 @@ with tabs[4]: # Paso 4
                     st.cache_data.clear()
                     h, lotes, p, t, granja, granja_det, sr, sd = load_all_data(spreadsheet)
                     
-                    lote_info = lotes[lotes['lote_id'] == lote_id_seg] if lotes is not None and not lotes.empty else pd.DataFrame()
-                    granja_detalle_info = granja_det[granja_det['lote_id'] == lote_id_seg] if granja_det is not None and not granja_det.empty else pd.DataFrame()
-
-                    if lote_info.empty:
+                    lote_info_df = lotes[lotes['lote_id'] == lote_id_seg] if lotes is not None and not lotes.empty else pd.DataFrame()
+                    
+                    if lote_info_df.empty:
                         st.error(f"Error: No se encontró el ID de Lote '{lote_id_seg}' en la hoja 'Lotes_Resumen'. Verifique que el ID sea correcto y que ya exista una evaluación de incubadora para este lote.")
                     else:
+                        lote_info = lote_info_df.iloc[0]
+                        granja_detalle_info = granja_det[granja_det['lote_id'] == lote_id_seg] if granja_det is not None and not granja_det.empty else pd.DataFrame()
                         df_seg = edited_seg_df.copy()
                         peso_promedio_7d = df_seg['peso_7d_gr'].mean()
                         cv_peso_7d = (df_seg['peso_7d_gr'].std() / peso_promedio_7d) * 100 if peso_promedio_7d > 0 else 0
                         peso_llegada = granja_detalle_info['peso_granja_gr'].mean() if not granja_detalle_info.empty else 0
                         gdp = (peso_promedio_7d - peso_llegada) / 7 if peso_llegada > 0 else 0
                         factor_crecimiento = peso_promedio_7d / peso_llegada if peso_llegada > 0 else 0
-                        total_aves = lote_info['cantidad_total'].iloc[0]
+                        total_aves = lote_info['cantidad_total']
                         mortalidad_pct_7d = (mortalidad_7d_n / total_aves) * 100 if total_aves > 0 else 0
                         
                         resumen_data = [lote_id_seg, str(fecha_eval_7d), round(peso_promedio_7d, 2), round(cv_peso_7d, 2), round(gdp, 2), round(factor_crecimiento, 2), int(mortalidad_7d_n), round(mortalidad_pct_7d, 2)]
