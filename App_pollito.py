@@ -56,7 +56,7 @@ def load_all_data(_spreadsheet):
                     df[id_col] = df[id_col].astype(str).str.strip()
                 for col in df.columns:
                     if df[col].dtype == 'object' and '_ok' not in col and 'fecha' not in col and 'hora' not in col:
-                         df[col] = pd.to_numeric(df[col].astype(str).str.replace(',', '.'), errors='coerce')
+                        df[col] = pd.to_numeric(df[col].astype(str).str.replace(',', '.'), errors='coerce')
         return tuple(dataframes.values())
     except Exception as e:
         st.error(f"Ocurrió un error al cargar los datos: {e}")
@@ -109,7 +109,6 @@ def calcular_puntuacion(df, sample_size):
     
     for col in puntuaciones.keys():
         if col in df.columns:
-            # Safely convert to boolean
             df[col] = df[col].apply(lambda x: str(x).strip().upper() == 'TRUE')
 
     df['puntuacion_individual'] = sum(df[param] * (score / sample_size) for param, score in puntuaciones.items() if param in df.columns)
@@ -130,28 +129,28 @@ def get_score_rating(score):
 # --- PESTAÑAS ---
 with tabs[0]: # Paso 0
     with st.form("huevo_form"):
-        h_col1, h_col2, h_col3 = st.columns(3);
+        h_col1, h_col2, h_col3 = st.columns(3)
         with h_col1: lote_id_huevo = st.text_input("ID Lote de Huevo").strip(); granja_origen_huevo = st.text_input("Granja de Origen del Huevo"); edad_reproductoras = st.number_input("Edad Lote Reproductoras (semanas)", 20, 80, 40)
         with h_col2: fecha_recepcion_huevo = st.date_input("Fecha de Recepción"); temp_camion = st.slider("Temperatura del Camión (°C)", 15.0, 25.0, 18.0); tiempo_espera = st.number_input("Tiempo de Espera Descarga (min)", 0, value=15)
         with h_col3: st.write("**Evaluación Física (Muestra)**"); huevos_sucios = st.number_input("N° Huevos Sucios", 0, step=1); huevos_fisurados = st.number_input("N° Huevos Fisurados", 0, step=1); total_muestra = st.number_input("Total Huevos Muestra", 30, value=100, step=10)
-        st.markdown("---"); st.subheader("Análisis de Peso (30 Huevos)");
+        st.markdown("---"); st.subheader("Análisis de Peso (30 Huevos)")
         edited_huevo_df = st.data_editor(st.session_state.huevo_data, hide_index=True, num_rows="fixed")
         if st.form_submit_button("Guardar Evaluación de Huevo"):
             if not lote_id_huevo or not granja_origen_huevo: st.error("ID del Lote y Granja de Origen son obligatorios.")
             else:
                 with st.spinner("Guardando..."):
-                    df_huevo = edited_huevo_df; porc_sucios = (huevos_sucios / total_muestra) * 100 if total_muestra > 0 else 0; porc_fisurados = (huevos_fisurados / total_muestra) * 100 if total_muestra > 0 else 0; peso_promedio = df_huevo['peso_huevo_gr'].mean(); cv_peso = (df_huevo['peso_huevo_gr'].std() / peso_promedio) * 100 if peso_promedio > 0 else 0;
+                    df_huevo = edited_huevo_df; porc_sucios = (huevos_sucios / total_muestra) * 100 if total_muestra > 0 else 0; porc_fisurados = (huevos_fisurados / total_muestra) * 100 if total_muestra > 0 else 0; peso_promedio = df_huevo['peso_huevo_gr'].mean(); cv_peso = (df_huevo['peso_huevo_gr'].std() / peso_promedio) * 100 if peso_promedio > 0 else 0
                     huevo_data_row = [lote_id_huevo, granja_origen_huevo, int(edad_reproductoras), str(fecha_recepcion_huevo), float(temp_camion), int(tiempo_espera), round(porc_sucios, 2), round(porc_fisurados, 2), round(peso_promedio, 2), round(cv_peso, 2)]
                     try: spreadsheet.worksheet("Huevo_Recepcion").append_row(huevo_data_row); st.success(f"Evaluación del lote de huevo {lote_id_huevo} guardada.")
                     except Exception as e: st.error(f"Error al guardar: {e}")
 
 with tabs[1]: # Paso 1
     with st.form("info_lote_form"):
-        col1, col2, col3 = st.columns(3);
+        col1, col2, col3 = st.columns(3)
         with col1: lote_id = st.text_input("ID del Lote").strip(); granja_origen = st.text_input("Granja de Origen"); linea_genetica = st.selectbox("Línea Genética", ["Cobb", "Ross", "Otra"])
         with col2: fecha_nacimiento = st.date_input("Fecha de Nacimiento"); cantidad_total = st.number_input("Cantidad Total de Pollitos", 1, step=1000); evaluador = st.text_input("Nombre del Evaluador")
         with col3: temp_furgon = st.slider("Temp. Furgón (°C)", 18.0, 25.0, 22.0); temp_cascara = st.slider("Temp. Cáscara (°C)", 16.0, 20.0, 18.0); temp_salon = st.slider("Temp. Salón (°C)", 18.0, 24.0, 21.0); huevo_sudado = st.toggle("Huevo Sudado", False); aves_por_caja = st.number_input("Aves por Caja", 50, 150, 100)
-        st.markdown("---"); st.header("Puntuación Detallada (30 Pollitos)");
+        st.markdown("---"); st.header("Puntuación Detallada (30 Pollitos)")
         edited_df = st.data_editor(st.session_state.pollitos_data, hide_index=True, num_rows="fixed", key="data_editor_incubadora")
         if st.form_submit_button("Guardar Evaluación de Incubadora"):
             if not lote_id or not granja_origen or not evaluador: st.error("ID del Lote, Granja de Origen y Evaluador son obligatorios.")
@@ -167,7 +166,7 @@ with tabs[1]: # Paso 1
 
 with tabs[2]: # Paso 2
     with st.form("transporte_form"):
-        t_col1, t_col2, t_col3 = st.columns(3);
+        t_col1, t_col2, t_col3 = st.columns(3)
         with t_col1: lote_id_transporte = st.text_input("ID del Lote").strip(); fecha_transporte = st.date_input("Fecha"); placa_vehiculo = st.text_input("Placa Vehículo"); conductor = st.text_input("Conductor")
         with t_col2: hora_salida = st.time_input("Hora Salida"); hora_llegada = st.time_input("Hora Llegada"); st.markdown("---"); temp_inicio = st.slider("Temp. Inicio (°C)", 18.0, 35.0, 24.0); hum_inicio = st.slider("Hum. Inicio (%)", 30, 80, 65)
         with t_col3: comportamiento_llegada = st.selectbox("Comportamiento", ["Calmos", "Ruidosos (frío)", "Jadeando (calor)", "Letárgicos"]); mortalidad_transporte = st.number_input("Mortalidad", 0, step=1); st.markdown("---"); temp_final = st.slider("Temp. Final (°C)", 18.0, 35.0, 25.0); hum_final = st.slider("Hum. Final (%)", 30, 80, 70)
@@ -181,13 +180,13 @@ with tabs[2]: # Paso 2
 
 with tabs[3]: # Paso 3
     with st.form("granja_form"):
-        g_col1, g_col2 = st.columns(2);
+        g_col1, g_col2 = st.columns(2)
         with g_col1: lote_id_granja = st.text_input("ID del Lote").strip(); fecha_recepcion = st.date_input("Fecha Recepción"); evaluador_granja = st.text_input("Evaluador en Granja")
         with g_col2: st.subheader("Condiciones del Galpón"); temp_ambiente_c = st.slider("Temp. Ambiente (°C)", 28.0, 35.0, 32.0); hum_relativa_pct = st.slider("Hum. Relativa (%)", 40, 80, 65); temp_cama_c = st.slider("Temp. de Cama (°C)", 28.0, 34.0, 31.0)
-        st.markdown("---"); st.header("Puntuación Detallada en Granja (30 Pollitos)");
+        st.markdown("---"); st.header("Puntuación Detallada en Granja (30 Pollitos)")
         edited_granja_df = st.data_editor(st.session_state.granja_detalle_data, hide_index=True, num_rows="fixed", key="data_editor_granja")
-        st.markdown("---"); st.subheader("Prueba de Buche Lleno (24h)");
-        b_col1, b_col2 = st.columns(2);
+        st.markdown("---"); st.subheader("Prueba de Buche Lleno (24h)")
+        b_col1, b_col2 = st.columns(2)
         with b_col1: muestra_buche_n = st.number_input("N° Pollitos Muestreados", 30, value=50)
         with b_col2: llenos_buche_24h_n = st.number_input("N° Pollitos con Buche Lleno", 0, value=45)
         if st.form_submit_button("Guardar Evaluación de Recepción"):
@@ -206,18 +205,20 @@ with tabs[3]: # Paso 3
 
 with tabs[4]: # Paso 4
     with st.form("seguimiento_form"):
-        s_col1, s_col2 = st.columns(2);
+        s_col1, s_col2 = st.columns(2)
         with s_col1: lote_id_seg = st.text_input("ID del Lote").strip(); fecha_eval_7d = st.date_input("Fecha de Evaluación (Día 7)")
         with s_col2: mortalidad_7d_n = st.number_input("Mortalidad Acumulada a Día 7", min_value=0, step=1)
-        st.markdown("---"); st.header("Evaluación Detallada (30 Pollitos a Día 7)");
+        st.markdown("---"); st.header("Evaluación Detallada (30 Pollitos a Día 7)")
         edited_seg_df = st.data_editor(st.session_state.seguimiento_data, hide_index=True, num_rows="fixed", key="data_editor_seguimiento")
         if st.form_submit_button("Guardar Evaluación de 7 Días"):
             if not lote_id_seg: st.error("El ID del Lote es obligatorio.")
             else:
                 with st.spinner("Guardando..."):
-                    df_seg = edited_seg_df.copy(); peso_promedio_7d = df_seg['peso_7d_gr'].mean(); cv_peso_7d = (df_seg['peso_7d_gr'].std() / peso_promedio_7d) * 100 if peso_promedio_7d > 0 else 0
+                    df_seg = edited_seg_df.copy()
+                    peso_promedio_7d = df_seg['peso_7d_gr'].mean()
+                    cv_peso_7d = (df_seg['peso_7d_gr'].std() / peso_promedio_7d) * 100 if peso_promedio_7d > 0 else 0
                     
-                    st.cache_data.clear() # Limpiar cache para obtener datos frescos
+                    st.cache_data.clear()
                     h, lotes, p, t, granja, granja_det, sr, sd = load_all_data(spreadsheet)
                     
                     lote_info = lotes[lotes['lote_id'] == lote_id_seg] if lotes is not None and not lotes.empty else pd.DataFrame()
@@ -233,7 +234,7 @@ with tabs[4]: # Paso 4
                         mortalidad_pct_7d = (mortalidad_7d_n / total_aves) * 100 if total_aves > 0 else 0
                         
                         resumen_data = [lote_id_seg, str(fecha_eval_7d), round(peso_promedio_7d, 2), round(cv_peso_7d, 2), round(gdp, 2), round(factor_crecimiento, 2), int(mortalidad_7d_n), round(mortalidad_pct_7d, 2)]
-                        df_seg_detalle = df_seg.copy(); df_seg_detalle.insert(0, 'lote_id', lote_id_seg);
+                        df_seg_detalle = df_seg.copy(); df_seg_detalle.insert(0, 'lote_id', lote_id_seg)
                         for col in df_seg_detalle.select_dtypes(include=['bool']).columns: df_seg_detalle[col] = df_seg_detalle[col].astype(str).str.upper()
                         
                         try:
@@ -307,4 +308,3 @@ with tabs[5]: # Paso 5
             with plot_col2: st.plotly_chart(px.bar(df_peso, x='Fase', y='Peso Promedio (gr)', title="Evolución del Peso Promedio", text_auto='.2f'), use_container_width=True)
     else:
         st.info("Aún no hay datos para mostrar.")
-
