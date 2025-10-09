@@ -49,14 +49,23 @@ def load_all_data(_spreadsheet):
             except gspread.exceptions.WorksheetNotFound:
                 dataframes[df_key] = pd.DataFrame()
 
+        # SOLUCIÓN: Normalizar IDs ANTES de la conversión numérica
         for df in dataframes.values():
             if not df.empty:
-                id_col = next((col for col in ['id_lote_huevo', 'lote_id'] if col in df.columns), None)
-                if id_col:
+                # Primero, normalizar todas las posibles columnas de ID a string limpio
+                id_cols = [col for col in ['id_lote_huevo', 'lote_id'] if col in df.columns]
+                for id_col in id_cols:
                     df[id_col] = df[id_col].astype(str).str.strip()
+                
+                # Segundo, convertir las columnas numéricas, EXCLUYENDO las de ID
                 for col in df.columns:
-                    if df[col].dtype == 'object' and '_ok' not in col and 'fecha' not in col and 'hora' not in col:
+                    if (df[col].dtype == 'object' and 
+                        '_ok' not in col and 
+                        'fecha' not in col and 
+                        'hora' not in col and
+                        col not in ['id_lote_huevo', 'lote_id']): # Exclusión explícita
                         df[col] = pd.to_numeric(df[col].astype(str).str.replace(',', '.'), errors='coerce')
+        
         return tuple(dataframes.values())
     except Exception as e:
         st.error(f"Ocurrió un error al cargar los datos: {e}")
@@ -308,3 +317,4 @@ with tabs[5]: # Paso 5
             with plot_col2: st.plotly_chart(px.bar(df_peso, x='Fase', y='Peso Promedio (gr)', title="Evolución del Peso Promedio", text_auto='.2f'), use_container_width=True)
     else:
         st.info("Aún no hay datos para mostrar.")
+
