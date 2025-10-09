@@ -109,7 +109,8 @@ def calcular_puntuacion(df, sample_size):
     
     for col in puntuaciones.keys():
         if col in df.columns:
-            df[col] = df[col].astype(bool)
+            # Safely convert to boolean
+            df[col] = df[col].apply(lambda x: str(x).strip().upper() == 'TRUE')
 
     df['puntuacion_individual'] = sum(df[param] * (score / sample_size) for param, score in puntuaciones.items() if param in df.columns)
     df['puntuacion_individual'] += np.where(df[peso_col] >= 34, 9.5 / sample_size, 0)
@@ -215,6 +216,8 @@ with tabs[4]: # Paso 4
             else:
                 with st.spinner("Guardando..."):
                     df_seg = edited_seg_df.copy(); peso_promedio_7d = df_seg['peso_7d_gr'].mean(); cv_peso_7d = (df_seg['peso_7d_gr'].std() / peso_promedio_7d) * 100 if peso_promedio_7d > 0 else 0
+                    
+                    st.cache_data.clear() # Limpiar cache para obtener datos frescos
                     h, lotes, p, t, granja, granja_det, sr, sd = load_all_data(spreadsheet)
                     
                     lote_info = lotes[lotes['lote_id'] == lote_id_seg] if lotes is not None and not lotes.empty else pd.DataFrame()
@@ -280,9 +283,9 @@ with tabs[5]: # Paso 5
                 output = StringIO()
                 for name, df in all_dfs.items():
                     if df is not None and not df.empty:
-                        id_col = 'lote_id' if 'lote_id' in df.columns else None
-                        if id_col:
-                            df_lote = df[df[id_col] == lote_seleccionado]
+                        id_col_name = 'lote_id' if 'lote_id' in df.columns else ('id_lote_huevo' if 'id_lote_huevo' in df.columns else None)
+                        if id_col_name:
+                            df_lote = df[df[id_col_name] == lote_seleccionado]
                             if not df_lote.empty:
                                 output.write(f"--- {name.upper()} ---\n")
                                 df_lote.to_csv(output, index=False)
