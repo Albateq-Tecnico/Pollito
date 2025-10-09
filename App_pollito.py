@@ -213,6 +213,7 @@ with tabs[3]: # Paso 3
                     except Exception as e: st.error(f"Error al guardar: {e}")
 
 with tabs[4]: # Paso 4
+    debug_mode = st.checkbox("🔍 Modo Debug", value=False)
     with st.form("seguimiento_form"):
         s_col1, s_col2 = st.columns(2)
         with s_col1: lote_id_seg = st.text_input("ID del Lote").strip(); fecha_eval_7d = st.date_input("Fecha de Evaluación (Día 7)")
@@ -226,10 +227,22 @@ with tabs[4]: # Paso 4
                     st.cache_data.clear()
                     h, lotes, p, t, granja, granja_det, sr, sd = load_all_data(spreadsheet)
                     
+                    if debug_mode:
+                        st.write("### 🔍 Información de Debug")
+                        st.write(f"**ID buscado:** `{lote_id_seg}` (Tipo: {type(lote_id_seg)})")
+                        if lotes is not None and not lotes.empty:
+                            st.write("**IDs disponibles en Lotes_Resumen:**", lotes['lote_id'].unique())
+                            st.write(f"**Tipo de columna lote_id:** {lotes['lote_id'].dtype}")
+                        else: st.error("⚠️ DataFrame 'lotes' está vacío o es None")
+
                     lote_info_df = lotes[lotes['lote_id'] == lote_id_seg] if lotes is not None and not lotes.empty else pd.DataFrame()
                     
                     if lote_info_df.empty:
                         st.error(f"Error: No se encontró el ID de Lote '{lote_id_seg}' en la hoja 'Lotes_Resumen'. Verifique que el ID sea correcto y que ya exista una evaluación de incubadora para este lote.")
+                        if debug_mode and lotes is not None:
+                            st.write("**Comparación exacta:**")
+                            for id_val in lotes['lote_id'].unique()[:5]:
+                                st.write(f"- DB: `{id_val}` ({type(id_val)}) | Buscado: `{lote_id_seg}` ({type(lote_id_seg)}) | Match: {id_val == lote_id_seg}")
                     else:
                         lote_info = lote_info_df.iloc[0]
                         granja_detalle_info = granja_det[granja_det['lote_id'] == lote_id_seg] if granja_det is not None and not granja_det.empty else pd.DataFrame()
@@ -239,8 +252,8 @@ with tabs[4]: # Paso 4
                         peso_llegada = granja_detalle_info['peso_granja_gr'].mean() if not granja_detalle_info.empty else 0
                         gdp = (peso_promedio_7d - peso_llegada) / 7 if peso_llegada > 0 else 0
                         factor_crecimiento = peso_promedio_7d / peso_llegada if peso_llegada > 0 else 0
-                        total_aves = lote_info['cantidad_total']
-                        mortalidad_pct_7d = (mortalidad_7d_n / total_aves) * 100 if total_aves > 0 else 0
+                        total_aves = pd.to_numeric(lote_info.get('cantidad_total', 0), errors='coerce')
+                        mortalidad_pct_7d = (mortalidad_7d_n / total_aves) * 100 if pd.notna(total_aves) and total_aves > 0 else 0
                         
                         resumen_data = [lote_id_seg, str(fecha_eval_7d), round(peso_promedio_7d, 2), round(cv_peso_7d, 2), round(gdp, 2), round(factor_crecimiento, 2), int(mortalidad_7d_n), round(mortalidad_pct_7d, 2)]
                         df_seg_detalle = df_seg.copy(); df_seg_detalle.insert(0, 'lote_id', lote_id_seg)
